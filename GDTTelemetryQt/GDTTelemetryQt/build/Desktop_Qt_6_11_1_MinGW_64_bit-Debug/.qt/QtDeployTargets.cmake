@@ -1,0 +1,3 @@
+set(__QT_DEPLOY_TARGET_GDTTelemetryTLDK35_FILE D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/GDTTelemetryTLDK35.exe)
+set(__QT_DEPLOY_TARGET_GDTTelemetryTLDK35_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_GDTTelemetryTLDK35_RUNTIME_DLLS D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Network.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Sql.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Charts.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6OpenGLWidgets.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Widgets.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6OpenGL.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Gui.dll;D:/Software/Qt/6.11.1/mingw_64/bin/Qt6Core.dll)
