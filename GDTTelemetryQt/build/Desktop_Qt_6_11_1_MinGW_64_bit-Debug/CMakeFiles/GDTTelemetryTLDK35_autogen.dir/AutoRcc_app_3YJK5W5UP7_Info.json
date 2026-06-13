@@ -1,0 +1,22 @@
+{
+	"BUILD_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/GDTTelemetryTLDK35_autogen",
+	"CMAKE_BINARY_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug",
+	"CMAKE_CURRENT_BINARY_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug",
+	"CMAKE_CURRENT_SOURCE_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt",
+	"CMAKE_SOURCE_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt",
+	"CROSS_CONFIG" : false,
+	"GENERATOR" : "Ninja",
+	"INCLUDE_DIR" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/GDTTelemetryTLDK35_autogen/include",
+	"INPUTS" : [],
+	"LOCK_FILE" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/GDTTelemetryTLDK35_autogen.dir/AutoRcc_app_3YJK5W5UP7_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "--no-zstd", "-name", "app" ],
+	"OUTPUT_CHECKSUM" : "3YJK5W5UP7",
+	"OUTPUT_NAME" : "qrc_app.cpp",
+	"RCC_EXECUTABLE" : "D:/Software/Qt/6.11.1/mingw_64/bin/rcc.exe",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/GDTTelemetryTLDK35_autogen.dir/AutoRcc_app_3YJK5W5UP7_Used.txt",
+	"SOURCE" : "D:/Code/GDTTelemetryQt/GDTTelemetryQt/resources/app.qrc",
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}
