@@ -28,15 +28,6 @@ SetupServerDialog::SetupServerDialog(const ServerConfig& cfg, QWidget* parent)
     fServer->addRow("",             m_chkPrimary);
     mainLay->addWidget(grpServer);
 
-    // Forward client group
-    auto* grpClient = new QGroupBox("Forward Client (Secondary)");
-    auto* fClient   = new QFormLayout(grpClient);
-    m_edClientIp   = new QLineEdit(cfg.clientIp);
-    m_spClientPort = new QSpinBox; m_spClientPort->setRange(1, 65535); m_spClientPort->setValue(cfg.clientPort);
-    fClient->addRow("Client IP:",   m_edClientIp);
-    fClient->addRow("Client Port:", m_spClientPort);
-    mainLay->addWidget(grpClient);
-
     // Multicast group
     auto* grpMcast = new QGroupBox("Multicast 5E15");
     auto* fMcast   = new QFormLayout(grpMcast);
@@ -57,8 +48,6 @@ ServerConfig SetupServerDialog::config() const {
     c.serverIp   = m_edServerIp->text().trimmed();
     c.serverPort = m_spServerPort->value();
     c.isPrimary  = m_chkPrimary->isChecked();
-    c.clientIp   = m_edClientIp->text().trimmed();
-    c.clientPort = m_spClientPort->value();
     c.mcastIp    = m_edMcastIp->text().trimmed();
     c.mcastPort  = m_spMcastPort->value();
     return c;

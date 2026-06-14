@@ -24,6 +24,9 @@ set(SOURCES
     ui/Panel5I41.cpp
     ui/PanelTelemetry.cpp
     ui/ChartPanel.cpp
+    ui/SeparatedChart.cpp
+    ui/OverlaidChart.cpp
+    ui/MultiChartWidget.cpp
     ui/ErrorRatePanel.cpp
     ui/Detail5A42Dialog.cpp
     ui/SetupServerDialog.cpp
@@ -47,6 +50,10 @@ set(HEADERS
     ui/Panel5I41.h
     ui/PanelTelemetry.h
     ui/ChartPanel.h
+    ui/SeparatedChart.h
+    ui/OverlaidChart.h
+    ui/SignalDragLabel.h
+    ui/MultiChartWidget.h
     ui/ErrorRatePanel.h
     ui/Detail5A42Dialog.h
     ui/SetupServerDialog.h

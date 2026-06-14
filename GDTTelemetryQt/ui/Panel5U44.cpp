@@ -1,5 +1,6 @@
 #include "Panel5U44.h"
 #include "LedIndicator.h"
+#include "SignalDragLabel.h"
 #include <QLabel>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -10,8 +11,8 @@ namespace GDT {
 
 static QLabel* mkL(const QString& t) { return new QLabel(t); }
 
-QLabel* Panel5U44::makeValueLabel() {
-    auto* l = new QLabel("---");
+QLabel* Panel5U44::makeValueLabel(const QString& sigName) {
+    QLabel* l = sigName.isEmpty() ? new QLabel("---") : new SignalDragLabel(sigName);
     l->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     l->setStyleSheet("background:#f0f8ff; color:#004488; border:1px solid #bbb; padding:2px 4px;");
     l->setMinimumWidth(70);
@@ -27,16 +28,16 @@ void Panel5U44::buildUi() {
 
     auto* g = new QGridLayout; g->setSpacing(4);
     int r = 0;
-    auto addRow = [&](const QString& n, QLabel*& v) {
+    auto addRow = [&](const QString& n, QLabel*& v, const QString& sigName = {}) {
         g->addWidget(mkL(n+":"), r, 0);
-        v = makeValueLabel();
+        v = makeValueLabel(sigName);
         g->addWidget(v, r++, 1);
     };
-    addRow("K1",      m_lK1);
-    addRow("K2",      m_lK2);
+    addRow("K1",      m_lK1,      "K1");
+    addRow("K2",      m_lK2,      "K2");
     addRow("SuyHao",  m_lSuyHao);
     addRow("CongSuat",m_lCongSuat);
-    addRow("XungHoi", m_lXungHoi);
+    addRow("XungHoi", m_lXungHoi, "Xung Hỏi");
     addRow("Phach",   m_lPhach);
     addRow("Index",   m_lIndex);
 

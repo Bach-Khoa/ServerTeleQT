@@ -2,16 +2,17 @@
 #include <QWidget>
 #include <QTimer>
 #include <QVector>
+#include <QCheckBox>
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
-#include <QtCharts/QAreaSeries>
 #include <QtCharts/QValueAxis>
 
 namespace GDT {
 
-// 5 mini charts side-by-side, one per packet type.
-// Each chart shows error rate % over time with a filled area series.
+// CANoe-style stacked lanes: each packet type gets its own horizontal lane
+// with independent Y-axis. All lanes share the same scrolling X-axis (time).
+// A signal-list panel on the left shows checkbox + color + name per lane.
 class ErrorRatePanel : public QWidget {
     Q_OBJECT
 public:
@@ -24,31 +25,32 @@ private slots:
     void refreshChart();
 
 private:
-    static constexpr int    N_CHARTS  = 5;
-    static constexpr int    MAX_PTS   = 1800;  // 60 s at 30 Hz
+    static constexpr int    N_CH      = 5;
+    static constexpr int    MAX_PTS   = 1800;   // 60 s at 30 Hz
     static constexpr double TIME_STEP = 0.033;
 
-    struct SubChart {
-        QChart*      chart  = nullptr;
-        QChartView*  view   = nullptr;
-        QLineSeries* upper  = nullptr;  // actual data line (upper bound of area)
-        QAreaSeries* area   = nullptr;  // filled area — lower bound = y0
-        QValueAxis*  axisX  = nullptr;
-        QValueAxis*  axisY  = nullptr;
+    struct Lane {
+        QWidget*     container = nullptr;   // row = [leftW | chartView]
+        QChart*      chart     = nullptr;
+        QChartView*  view      = nullptr;
+        QLineSeries* series    = nullptr;
+        QValueAxis*  axisX     = nullptr;
+        QValueAxis*  axisY     = nullptr;
+        QCheckBox*   check     = nullptr;
         QVector<double> ring;
-        QVector<double> times;
-        int    wPos    = 0;
-        bool   full    = false;
-        bool   dirty   = false;
-        double timeNow = 0.0;
+        bool visible = true;
     };
 
-    void initSubChart(int idx, const QString& title, const QColor& color);
-    void appendSample(int idx, double value);
-    void refreshSubChart(int idx);
+    void initLane(int ch, bool isBottom);
 
-    SubChart m_sub[N_CHARTS];
-    QTimer*  m_timer;
+    Lane            m_lanes[N_CH];
+    QVector<double> m_times;
+    int    m_wPos    = 0;
+    bool   m_full    = false;
+    bool   m_dirty   = false;
+    double m_timeNow = 0.0;
+
+    QTimer* m_timer = nullptr;
 };
 
 } // namespace GDT

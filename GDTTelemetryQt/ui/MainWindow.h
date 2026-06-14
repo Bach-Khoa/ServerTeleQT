@@ -2,6 +2,7 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QTimer>
+#include <QDialog>
 #include "models/AppConfig.h"
 #include "network/TelemetryServer.h"
 #include "network/MulticastReceiver.h"
@@ -15,7 +16,7 @@ class Panel5U44;
 class Panel5E15;
 class Panel5I41;
 class PanelTelemetry;
-class ChartPanel;
+class MultiChartWidget;
 class ErrorRatePanel;
 class Detail5A42Dialog;
 
@@ -71,6 +72,8 @@ private slots:
     void onSetup5A42();
     void onReset();
     void onShow5A42Detail();
+    void onToggleErrorRatePanel();
+    void promptAndStartLog();       // ask flight name → close old log → open new log
 
     // Data receive slots — lightweight: store + log only, NO panel/chart update
     void onTelemetryReceived(GDT::DataTelemetry d);
@@ -98,16 +101,32 @@ private:
     CsvLogger           m_logger;
 
     // Panels
-    Panel5A42*       m_panel5A42;
-    Panel5U44*       m_panel5U44;
-    Panel5E15*       m_panel5E15;
-    Panel5I41*       m_panel5I41;
-    PanelTelemetry*  m_panelTele;
-    ChartPanel*      m_chart;
-    ErrorRatePanel*  m_errorRatePanel;
+    Panel5A42*        m_panel5A42;
+    Panel5U44*        m_panel5U44;
+    Panel5E15*        m_panel5E15;
+    Panel5I41*        m_panel5I41;
+    PanelTelemetry*   m_panelTele;
+    MultiChartWidget* m_multiChart;
+    ErrorRatePanel*   m_errorRatePanel;
 
     // Detail windows (non-modal, lazily created)
-    Detail5A42Dialog* m_detail5A42 = nullptr;
+    Detail5A42Dialog* m_detail5A42    = nullptr;
+    QDialog*          m_errRateDlg    = nullptr;
+
+    // Full-panel dialogs (Qt::Tool, shown on demand from compact sidebar)
+    QDialog* m_dlgTele = nullptr;
+    QDialog* m_dlg5A42 = nullptr;
+    QDialog* m_dlg5I41 = nullptr;
+    QDialog* m_dlg5U44 = nullptr;
+    QDialog* m_dlg5E15 = nullptr;
+
+    // Compact sidebar key-value labels
+    QLabel *m_cTeleIdx  = nullptr, *m_cTeleSt5A = nullptr, *m_cTeleSt5U = nullptr;
+    QLabel *m_c5A42K1   = nullptr, *m_c5A42K2   = nullptr;
+    QLabel *m_c5A42Duk  = nullptr, *m_c5A42Adc  = nullptr;
+    QLabel *m_c5I41Adc26= nullptr, *m_c5I41Adc115 = nullptr, *m_c5I41Freq = nullptr;
+    QLabel *m_c5U44K1   = nullptr, *m_c5U44K2   = nullptr, *m_c5U44Xung  = nullptr;
+    QLabel *m_c5E15Volt = nullptr, *m_c5E15Temp = nullptr;
 
     // Status bar labels
     QLabel* m_statusLabel;
@@ -121,12 +140,16 @@ private:
     QLabel* m_err5E15;
 
     // Rate limiting: latest received data per type
-    GDT::DataTelemetry m_latestTele;
-    GDT::Data5A42      m_latest5A42;
-    GDT::Data5U44      m_latest5U44;
+    GDT::DataTelemetry  m_latestTele;
+    GDT::Data5A42       m_latest5A42;
+    GDT::Data5U44       m_latest5U44;
+    GDT::Data5I41Block  m_latest5I41;
+    GDT::Data5E15       m_latest5E15;
     bool m_hasTele = false;
     bool m_has5A42 = false;
     bool m_has5U44 = false;
+    bool m_has5I41 = false;
+    bool m_has5E15 = false;
 
     // Error rate stats
     PktStats m_statsTele;

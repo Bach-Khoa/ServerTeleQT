@@ -4,7 +4,7 @@
 #include "Panel5E15.h"
 #include "Panel5I41.h"
 #include "PanelTelemetry.h"
-#include "ChartPanel.h"
+#include "MultiChartWidget.h"
 #include "ErrorRatePanel.h"
 #include "Detail5A42Dialog.h"
 #include "SetupServerDialog.h"
@@ -23,6 +23,12 @@
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QFrame>
+#include <QFormLayout>
+#include <QApplication>
+#include <QPushButton>
+#include "SignalDragLabel.h"
+
+using GDT::SignalDragLabel;
 
 namespace GDT {
 
@@ -52,6 +58,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_uiTimer = new QTimer(this);
     connect(m_uiTimer, &QTimer::timeout, this, &MainWindow::onUiTimer);
     m_uiTimer->start(33);
+
+    // Ask for log name as soon as the window is visible
+    QTimer::singleShot(350, this, &MainWindow::promptAndStartLog);
 }
 
 MainWindow::~MainWindow() {
@@ -67,62 +76,181 @@ void MainWindow::buildUi() {
     m_panel5U44      = new Panel5U44;
     m_panel5E15      = new Panel5E15;
     m_panelTele      = new PanelTelemetry;
-    m_chart          = new ChartPanel;
+    m_multiChart     = new MultiChartWidget;
     m_errorRatePanel = new ErrorRatePanel;
 
-    // Left: instrument panels in a scroll area
-    auto* instrWidget = new QWidget;
-    auto* grid = new QGridLayout(instrWidget);
-    grid->setSpacing(4);
-    grid->setContentsMargins(4, 4, 4, 4);
-    grid->addWidget(m_panelTele,  0, 0);
-    grid->addWidget(m_panel5I41,  1, 0);
-    grid->addWidget(m_panel5A42,  0, 1, 2, 1);
-    grid->addWidget(m_panel5U44,  0, 2, 2, 1);
-    grid->addWidget(m_panel5E15,  0, 3, 2, 1);
-    grid->setRowStretch(2, 1);
+    // ── Full-panel detail dialogs (Qt::Tool — float above main, no taskbar) ──
+    auto wrapDlg = [&](const QString& title, QWidget* panel, QSize sz) -> QDialog* {
+        auto* dlg = new QDialog(this);
+        dlg->setWindowTitle(title);
+        dlg->setWindowFlags(Qt::Tool);
+        dlg->setMinimumSize(sz);
+        auto* vl = new QVBoxLayout(dlg);
+        vl->setContentsMargins(4, 4, 4, 4);
+        vl->addWidget(panel);
+        return dlg;
+    };
+    m_dlgTele = wrapDlg("Telemetry Stream",    m_panelTele,  {280, 180});
+    m_dlg5A42 = wrapDlg("5A42 - Control Unit", m_panel5A42, {360, 540});
+    m_dlg5I41 = wrapDlg("5I41 - Inertial",     m_panel5I41, {280, 340});
+    m_dlg5U44 = wrapDlg("5U44 - RF",           m_panel5U44, {340, 400});
+    m_dlg5E15 = wrapDlg("5E15 - Transmitter",  m_panel5E15, {280, 180});
 
-    auto* scroll = new QScrollArea;
-    scroll->setWidget(instrWidget);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
+    // ── Compact sidebar helpers ──────────────────────────────────────────────
+    auto mkVal = [](QLabel*& out) {
+        out = new QLabel("---");
+        out->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        out->setStyleSheet("color:#002244; font-weight:bold; font-size:9pt;"
+                           "background:#f0f4ff; border:1px solid #ccd;"
+                           "border-radius:2px; padding:1px 5px;");
+    };
+    auto mkDrag = [](QLabel*& out, const QString& sig) {
+        auto* lbl = new SignalDragLabel(sig);
+        lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        lbl->setStyleSheet(
+            "color:#002244; font-weight:bold; font-size:9pt;"
+            "background:#e8eeff; border:1px solid #99aacc;"
+            "border-radius:2px; padding:1px 5px;");
+        out = lbl;
+    };
+    auto addRow = [](QFormLayout* fl, const QString& name, QLabel* val) {
+        auto* lbl = new QLabel(name + ":");
+        lbl->setStyleSheet("color:#555; font-size:8pt;");
+        fl->addRow(lbl, val);
+    };
 
-    // Right: live chart (top) + error rate chart (bottom)
+    // Card builder: colored header + key-value rows + "↗" detail button
+    auto makeCard = [&](const QString& title, QColor hdrClr, QDialog* dlg,
+                        const std::function<void(QFormLayout*)>& addRows) -> QWidget* {
+        auto* card = new QFrame;
+        card->setStyleSheet("QFrame{border:1px solid #bbb;border-radius:3px;background:white;}");
+        auto* vl = new QVBoxLayout(card);
+        vl->setContentsMargins(0, 0, 0, 0);
+        vl->setSpacing(0);
+        // Header
+        auto* hdr = new QWidget;
+        hdr->setFixedHeight(24);
+        hdr->setStyleSheet(QString("background:%1;border-radius:2px 2px 0 0;").arg(hdrClr.name()));
+        auto* hHl = new QHBoxLayout(hdr);
+        hHl->setContentsMargins(6, 0, 4, 0); hHl->setSpacing(4);
+        auto* hTitle = new QLabel(title);
+        hTitle->setStyleSheet("color:white; font-weight:bold; font-size:9pt;"
+                              "border:none; background:transparent;");
+        hHl->addWidget(hTitle, 1);
+        if (dlg) {
+            auto* btn = new QPushButton("↗");
+            btn->setFixedSize(16, 16);
+            btn->setStyleSheet(
+                "QPushButton{color:white;background:rgba(255,255,255,0.25);"
+                "border:1px solid rgba(255,255,255,0.55);border-radius:2px;font-size:8pt;}"
+                "QPushButton:hover{background:rgba(255,255,255,0.45);}");
+            btn->setToolTip("Xem chi tiet");
+            connect(btn, &QPushButton::clicked, [dlg](){
+                dlg->show(); dlg->raise(); dlg->activateWindow();
+            });
+            hHl->addWidget(btn);
+        }
+        vl->addWidget(hdr);
+        // Body
+        auto* body = new QWidget;
+        auto* fl = new QFormLayout(body);
+        fl->setContentsMargins(6, 4, 6, 4);
+        fl->setSpacing(3); fl->setHorizontalSpacing(6);
+        fl->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        addRows(fl);
+        vl->addWidget(body);
+        return card;
+    };
+
+    // Create all compact labels
+    mkVal(m_cTeleIdx); mkVal(m_cTeleSt5A); mkVal(m_cTeleSt5U);
+    mkDrag(m_c5A42K1, "K1");         mkDrag(m_c5A42K2,  "K2");
+    mkDrag(m_c5A42Duk, "DUK");       mkDrag(m_c5A42Adc, "ADC26V");
+    mkDrag(m_c5I41Adc26, "26VDC");       mkDrag(m_c5I41Adc115, "115VAC");
+    mkDrag(m_c5I41Freq,  "Tần số/10");
+    mkDrag(m_c5U44K1, "K1");             mkDrag(m_c5U44K2,  "K2");
+    mkDrag(m_c5U44Xung,  "Xung Hỏi");
+    mkDrag(m_c5E15Volt,  "Điện áp 150V"); mkDrag(m_c5E15Temp, "Nhiệt độ DSP");
+
+    auto* sidebar = new QWidget;
+    sidebar->setFixedWidth(195);
+    auto* sideVl = new QVBoxLayout(sidebar);
+    sideVl->setContentsMargins(4, 4, 4, 4);
+    sideVl->setSpacing(4);
+
+    sideVl->addWidget(makeCard("Telemetry", QColor("#004488"), m_dlgTele,
+        [&](QFormLayout* fl){ addRow(fl,"Index",m_cTeleIdx);
+                               addRow(fl,"St.5A",m_cTeleSt5A);
+                               addRow(fl,"St.5U",m_cTeleSt5U); }));
+    sideVl->addWidget(makeCard("5A42", QColor("#006633"), m_dlg5A42,
+        [&](QFormLayout* fl){ addRow(fl,"K1",    m_c5A42K1);
+                               addRow(fl,"K2",    m_c5A42K2);
+                               addRow(fl,"DUK",   m_c5A42Duk);
+                               addRow(fl,"ADC26V",m_c5A42Adc); }));
+    sideVl->addWidget(makeCard("5I41", QColor("#663300"), m_dlg5I41,
+        [&](QFormLayout* fl){ addRow(fl,"26V",  m_c5I41Adc26);
+                               addRow(fl,"115V", m_c5I41Adc115);
+                               addRow(fl,"Freq", m_c5I41Freq); }));
+    sideVl->addWidget(makeCard("5U44", QColor("#550066"), m_dlg5U44,
+        [&](QFormLayout* fl){ addRow(fl,"K1",   m_c5U44K1);
+                               addRow(fl,"K2",   m_c5U44K2);
+                               addRow(fl,"Xung", m_c5U44Xung); }));
+    sideVl->addWidget(makeCard("5E15", QColor("#555500"), m_dlg5E15,
+        [&](QFormLayout* fl){ addRow(fl,"DA 150V",m_c5E15Volt);
+                               addRow(fl,"Nhiet", m_c5E15Temp); }));
+    sideVl->addStretch();
+
+    // Right: 4-chart widget takes full height
     auto* rightWidget = new QWidget;
     auto* rightVl = new QVBoxLayout(rightWidget);
     rightVl->setContentsMargins(0, 0, 0, 0);
-    rightVl->setSpacing(2);
-    rightVl->addWidget(m_chart, 3);
-    rightVl->addWidget(m_errorRatePanel, 1);
+    rightVl->setSpacing(0);
+    rightVl->addWidget(m_multiChart, 1);
 
-    // Horizontal splitter: panels left | charts right
+    // ErrorRatePanel lives in a floating dialog (shown on demand)
+    m_errRateDlg = new QDialog(this);
+    m_errRateDlg->setWindowTitle("Tỷ lệ lỗi theo thời gian");
+    m_errRateDlg->setMinimumSize(720, 420);
+    auto* dlgVl = new QVBoxLayout(m_errRateDlg);
+    dlgVl->setContentsMargins(4, 4, 4, 4);
+    dlgVl->addWidget(m_errorRatePanel);
+    m_errRateDlg->hide();
+
+    // Horizontal splitter: compact sidebar left | charts right
     auto* splitter = new QSplitter(Qt::Horizontal);
-    splitter->addWidget(scroll);
+    splitter->addWidget(sidebar);
     splitter->addWidget(rightWidget);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({420, 860});
+    splitter->setSizes({200, 1080});
 
-    // Info bar: error rate labels
+    // Info bar: error rate labels (larger, color-coded)
     auto* infoBar = new QWidget;
-    infoBar->setFixedHeight(28);
-    infoBar->setStyleSheet("background:#ddeeff; border-bottom:1px solid #aac; font-size:9px;");
+    infoBar->setFixedHeight(38);
+    infoBar->setStyleSheet("background:#ddeeff; border-bottom:1px solid #aac;");
     auto* infoLayout = new QHBoxLayout(infoBar);
-    infoLayout->setContentsMargins(8, 0, 8, 0);
-    infoLayout->setSpacing(24);
+    infoLayout->setContentsMargins(8, 2, 8, 2);
+    infoLayout->setSpacing(12);
+
+    static const QString kErrStyleOk  = "color:#005500; font-weight:bold; font-size:12px;"
+                                         "background:#d4edda; border:1px solid #66bb88;"
+                                         "border-radius:4px; padding:2px 8px;";
+    static const QString kErrStyleInit= "color:#555555; font-weight:bold; font-size:12px;"
+                                         "background:#eeeeee; border:1px solid #bbbbbb;"
+                                         "border-radius:4px; padding:2px 8px;";
 
     auto makeLbl = [&](QLabel*& lbl, const QString& init) {
         lbl = new QLabel(init);
-        lbl->setStyleSheet("color:#003366;");
+        lbl->setStyleSheet(kErrStyleInit);
         infoLayout->addWidget(lbl);
     };
 
     // Client count — prominent at left
     m_connLabel = new QLabel("Clients: 0");
     m_connLabel->setStyleSheet(
-        "color:#005500; font-weight:bold; font-size:10px;"
+        "color:#005500; font-weight:bold; font-size:12px;"
         "background:#ccffcc; border:1px solid #44aa44;"
-        "border-radius:3px; padding:1px 6px;");
+        "border-radius:4px; padding:2px 8px;");
     infoLayout->addWidget(m_connLabel);
 
     // Separator
@@ -132,11 +260,11 @@ void MainWindow::buildUi() {
     sep->setStyleSheet("color:#aac;");
     infoLayout->addWidget(sep);
 
-    makeLbl(m_errTele, "Tỷ lệ lỗi Telemetry: --- %");
-    makeLbl(m_err5A42, "Tỷ lệ lỗi 5A42VT: --- %");
-    makeLbl(m_err5U44, "Tỷ lệ lỗi 5U44VT: --- %");
-    makeLbl(m_err5I41, "Tỷ lệ lỗi 5I41VT: --- %");
-    makeLbl(m_err5E15, "Tỷ lệ lỗi 5E15: --- %");
+    makeLbl(m_errTele, "Tele: ---");
+    makeLbl(m_err5A42, "5A42: ---");
+    makeLbl(m_err5U44, "5U44: ---");
+    makeLbl(m_err5I41, "5I41: ---");
+    makeLbl(m_err5E15, "5E15: ---");
     infoLayout->addStretch();
 
     auto* central = new QWidget;
@@ -186,10 +314,15 @@ void MainWindow::buildMenuBar() {
     auto* tbStop   = tb->addAction("■ Dừng");
     auto* tbReset  = tb->addAction("🔄 Reset Server");
     tbReset->setToolTip("Dừng server, reset bộ đếm và khởi động lại");
+    tb->addSeparator();
+    auto* tbErrChart = tb->addAction("📈 Tỷ lệ lỗi");
+    tbErrChart->setCheckable(true);
+    tbErrChart->setToolTip("Hiển thị/ẩn đồ thị tỷ lệ lỗi");
 
-    connect(tbStart, &QAction::triggered, this, &MainWindow::onStartServer);
-    connect(tbStop,  &QAction::triggered, this, &MainWindow::onStopServer);
-    connect(tbReset, &QAction::triggered, this, &MainWindow::onResetServer);
+    connect(tbStart,    &QAction::triggered, this, &MainWindow::onStartServer);
+    connect(tbStop,     &QAction::triggered, this, &MainWindow::onStopServer);
+    connect(tbReset,    &QAction::triggered, this, &MainWindow::onResetServer);
+    connect(tbErrChart, &QAction::triggered, this, &MainWindow::onToggleErrorRatePanel);
 }
 
 // ============================================================
@@ -232,7 +365,7 @@ void MainWindow::onResetServer() {
     m_stats5I41.reset();
     m_stats5E15.reset();
     m_idx5E15 = 0;
-    m_chart->reset();
+    m_multiChart->reset();
     m_errorRatePanel->reset();
     if (m_detail5A42) m_detail5A42->reset();
 
@@ -244,20 +377,40 @@ void MainWindow::onResetServer() {
     m_mcast->start(m_config.server.mcastIp, m_config.server.mcastPort);
     updateStatusBar(QString("Reset xong — Server đang chạy tại %1:%2")
                     .arg(m_config.server.serverIp).arg(m_config.server.serverPort));
+
+    // Prompt for new log name after reset (close old log first inside)
+    promptAndStartLog();
 }
 
 void MainWindow::onStartLog() {
+    promptAndStartLog();
+}
+
+void MainWindow::promptAndStartLog() {
+    // Close any currently open log before asking for a new one
+    if (m_logger.isOpen()) {
+        m_logger.close();
+        updateStatusBar("Đã đóng log cũ");
+    }
+
     bool ok;
-    QString name = QInputDialog::getText(this, "Tên chuyến bay",
-                                          "Nhập tên chuyến bay:", QLineEdit::Normal,
-                                          m_config.flightName, &ok);
-    if (!ok || name.isEmpty()) return;
-    m_config.flightName = name;
-    if (!m_logger.open(name)) {
+    QString name = QInputDialog::getText(
+        this, "Set name  / Log",
+        "Enter Log name (leave empty or cancel = don't save log):",
+        QLineEdit::Normal,
+        m_config.flightName, &ok);
+
+    if (!ok || name.trimmed().isEmpty()) {
+        updateStatusBar("Không ghi log (bỏ qua)");
+        return;
+    }
+
+    m_config.flightName = name.trimmed();
+    if (!m_logger.open(m_config.flightName)) {
         QMessageBox::warning(this, "Lỗi", "Không thể tạo file CSV!");
         return;
     }
-    updateStatusBar("Đang ghi dữ liệu: " + name);
+    updateStatusBar("Đang ghi dữ liệu: " + m_config.flightName);
 }
 
 void MainWindow::onStopLog() {
@@ -288,7 +441,7 @@ void MainWindow::onReset() {
     m_stats5U44.reset();
     m_stats5I41.reset();
     m_stats5E15.reset();
-    m_chart->reset();
+    m_multiChart->reset();
     m_errorRatePanel->reset();
     if (m_detail5A42) m_detail5A42->reset();
     updateStatusBar("Đã reset bộ đếm");
@@ -302,6 +455,16 @@ void MainWindow::onShow5A42Detail() {
     m_detail5A42->show();
     m_detail5A42->raise();
     m_detail5A42->activateWindow();
+}
+
+void MainWindow::onToggleErrorRatePanel() {
+    if (m_errRateDlg->isVisible()) {
+        m_errRateDlg->hide();
+    } else {
+        m_errRateDlg->show();
+        m_errRateDlg->raise();
+        m_errRateDlg->activateWindow();
+    }
 }
 
 // ============================================================
@@ -334,11 +497,16 @@ void MainWindow::on5U44Received(GDT::Data5U44 d) {
 
 void MainWindow::on5I41Received(GDT::Data5I41Block d) {
     m_stats5I41.update(d.index);
+    m_latest5I41 = d;
+    m_has5I41    = true;
+    if (m_logger.isOpen()) m_logger.write5I41(d);
 }
 
 void MainWindow::on5E15Received(GDT::Data5E15 d) {
     m_stats5E15.update(m_idx5E15);
     m_panel5E15->update(d);
+    m_latest5E15 = d;
+    m_has5E15    = true;
     if (m_logger.isOpen()) m_logger.write5E15(d, "multicast", m_idx5E15++);
 }
 
@@ -361,28 +529,77 @@ void MainWindow::onUiTimer() {
     if (m_hasTele) {
         m_panel5I41->update(m_latestTele);
         m_panelTele->update(m_latestTele);
+        // Compact Telemetry card
+        m_cTeleIdx ->setText(QString::number(m_latestTele.index));
+        m_cTeleSt5A->setText(QString("0x%1").arg(m_latestTele.status5A, 2, 16, QChar('0')).toUpper());
+        m_cTeleSt5U->setText(QString("0x%1").arg(m_latestTele.status5U, 2, 16, QChar('0')).toUpper());
         m_hasTele = false;
+    }
+    if (m_has5I41) {
+        m_multiChart->addData5I41(m_latest5I41);
+        // Compact 5I41 card
+        m_c5I41Adc26 ->setText(QString("%1V").arg(m_latest5I41.u26VPWR,   0, 'f', 2));
+        m_c5I41Adc115->setText(QString("%1V").arg(m_latest5I41.u115V5U44, 0, 'f', 1));
+        m_c5I41Freq  ->setText(QString("%1").arg((int)m_latest5I41.freqPWR));
+        m_has5I41 = false;
     }
     if (m_has5A42) {
         m_panel5A42->update(m_latest5A42);
-        m_chart->addData5A42(m_latest5A42);
+        m_multiChart->addData5A42(m_latest5A42);
+        // Compact 5A42 card
+        m_c5A42K1 ->setText(QString("%1").arg(m_latest5A42.k1,   0, 'f', 3));
+        m_c5A42K2 ->setText(QString("%1").arg(m_latest5A42.k2,   0, 'f', 3));
+        m_c5A42Duk->setText(QString("%1").arg(m_latest5A42.duk,  0, 'f', 3));
+        m_c5A42Adc->setText(QString("%1V").arg(m_latest5A42.adc26,0,'f',2));
         m_has5A42 = false;
     }
     if (m_has5U44) {
         m_panel5U44->update(m_latest5U44);
+        m_multiChart->addData5U44(m_latest5U44);
+        // Compact 5U44 card
+        m_c5U44K1  ->setText(QString("%1").arg(m_latest5U44.k1,      0, 'f', 3));
+        m_c5U44K2  ->setText(QString("%1").arg(m_latest5U44.k2,      0, 'f', 3));
+        m_c5U44Xung->setText(QString("%1").arg(m_latest5U44.xungHoi));
         m_has5U44 = false;
     }
+    if (m_has5E15) {
+        m_multiChart->addData5E15(m_latest5E15);
+        // Compact 5E15 card
+        m_c5E15Volt->setText(QString("%1V").arg(m_latest5E15.dienAp150V,  0, 'f', 1));
+        m_c5E15Temp->setText(QString("%1C").arg(m_latest5E15.nhietDoDsp,  0, 'f', 1));
+        m_has5E15 = false;
+    }
 
-    // Update error rate display and feed error rate chart
-    auto fmtRate = [](const PktStats& s) -> QString {
-        if (s.received == 0) return "--- %";
-        return QString("%1 %").arg(s.errorRate(), 0, 'f', 5);
+    // Update error rate display (color-coded) and feed the floating chart
+    auto applyErrLabel = [](QLabel* lbl, const QString& tag, const PktStats& s) {
+        QString styleOk   = "color:#005500; font-weight:bold; font-size:12px;"
+                            "background:#d4edda; border:1px solid #66bb88;"
+                            "border-radius:4px; padding:2px 8px;";
+        QString styleWarn = "color:#664400; font-weight:bold; font-size:12px;"
+                            "background:#fff3cd; border:1px solid #ffaa44;"
+                            "border-radius:4px; padding:2px 8px;";
+        QString styleErr  = "color:#7a0000; font-weight:bold; font-size:12px;"
+                            "background:#f8d7da; border:1px solid #f44;"
+                            "border-radius:4px; padding:2px 8px;";
+        QString styleInit = "color:#555555; font-weight:bold; font-size:12px;"
+                            "background:#eeeeee; border:1px solid #bbbbbb;"
+                            "border-radius:4px; padding:2px 8px;";
+        if (s.received == 0) {
+            lbl->setStyleSheet(styleInit);
+            lbl->setText(tag + ": ---");
+        } else {
+            double r = s.errorRate();
+            lbl->setText(tag + ": " + QString("%1%").arg(r, 0, 'f', 4));
+            if      (r < 0.1)  lbl->setStyleSheet(styleOk);
+            else if (r < 1.0)  lbl->setStyleSheet(styleWarn);
+            else               lbl->setStyleSheet(styleErr);
+        }
     };
-    m_errTele->setText("Tỷ lệ lỗi Telemetry: " + fmtRate(m_statsTele));
-    m_err5A42->setText("Tỷ lệ lỗi 5A42VT: "    + fmtRate(m_stats5A42));
-    m_err5U44->setText("Tỷ lệ lỗi 5U44VT: "    + fmtRate(m_stats5U44));
-    m_err5I41->setText("Tỷ lệ lỗi 5I41VT: "    + fmtRate(m_stats5I41));
-    m_err5E15->setText("Tỷ lệ lỗi 5E15: "       + fmtRate(m_stats5E15));
+    applyErrLabel(m_errTele, "Tele",  m_statsTele);
+    applyErrLabel(m_err5A42, "5A42",  m_stats5A42);
+    applyErrLabel(m_err5U44, "5U44",  m_stats5U44);
+    applyErrLabel(m_err5I41, "5I41",  m_stats5I41);
+    applyErrLabel(m_err5E15, "5E15",  m_stats5E15);
 
     m_errorRatePanel->addSample(
         m_statsTele.errorRate(), m_stats5A42.errorRate(),

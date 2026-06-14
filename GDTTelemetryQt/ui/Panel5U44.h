@@ -17,7 +17,7 @@ public slots:
 
 private:
     void buildUi();
-    QLabel* makeValueLabel();
+    QLabel* makeValueLabel(const QString& sigName = {});
 
     QLabel* m_lK1, *m_lK2, *m_lSuyHao, *m_lCongSuat, *m_lXungHoi, *m_lPhach, *m_lIndex;
 

@@ -18,8 +18,6 @@ private:
     QLineEdit* m_edServerIp;
     QSpinBox*  m_spServerPort;
     QCheckBox* m_chkPrimary;
-    QLineEdit* m_edClientIp;
-    QSpinBox*  m_spClientPort;
     QLineEdit* m_edMcastIp;
     QSpinBox*  m_spMcastPort;
 };

@@ -21,7 +21,7 @@ signals:
 
 private:
     void buildUi();
-    QLabel* makeValueLabel(const QString& initText = "---");
+    QLabel* makeValueLabel(const QString& sigName = {});
 
     // Value labels
     QLabel* m_lK1, *m_lK2, *m_lAdc26;

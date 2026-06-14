@@ -1,4 +1,5 @@
 #include "Panel5I41.h"
+#include "SignalDragLabel.h"
 #include <QLabel>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -12,21 +13,21 @@ Panel5I41::Panel5I41(QWidget* parent) : QWidget(parent) {
                        "QGroupBox::title{subcontrol-origin:margin;left:8px;}");
     auto* g = new QGridLayout; g->setSpacing(4);
 
-    auto mkVal = [&]() -> QLabel* {
-        auto* l = new QLabel("---");
+    auto mkVal = [&](const QString& sig = {}) -> QLabel* {
+        QLabel* l = sig.isEmpty() ? new QLabel("---") : new SignalDragLabel(sig);
         l->setStyleSheet("background:#fffaf0;color:#664400;border:1px solid #bbb;padding:2px 4px;");
         l->setAlignment(Qt::AlignRight|Qt::AlignVCenter); l->setMinimumWidth(65); return l;
     };
 
     int r = 0;
-    auto row = [&](const QString& n, QLabel*& v) {
+    auto row = [&](const QString& n, QLabel*& v, const QString& sig = {}) {
         g->addWidget(new QLabel(n+":"), r, 0);
-        v = mkVal(); g->addWidget(v, r++, 1);
+        v = mkVal(sig); g->addWidget(v, r++, 1);
     };
-    row("ADC26 [V]",  m_lAdc26);
-    row("ADC36 [V]",  m_lAdc36);
-    row("ADC115 [V]", m_lAdc115);
-    row("Freq (Hz)",  m_lFreq);
+    row("ADC26 [V]",  m_lAdc26,  "26VDC");
+    row("ADC36 [V]",  m_lAdc36,  "36VAC");
+    row("ADC115 [V]", m_lAdc115, "115VAC");
+    row("Freq (Hz)",  m_lFreq,   "Tần số/10");
     row("X Gyro",     m_lXGyro);
     row("Y Gyro",     m_lYGyro);
     row("Z Gyro",     m_lZGyro);

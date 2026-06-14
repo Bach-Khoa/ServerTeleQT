@@ -1,5 +1,6 @@
 #include "Panel5A42.h"
 #include "LedIndicator.h"
+#include "SignalDragLabel.h"
 #include <QLabel>
 #include <QPushButton>
 #include <QGridLayout>
@@ -15,8 +16,8 @@ static QLabel* mkLabel(const QString& t, bool bold = false) {
     return l;
 }
 
-QLabel* Panel5A42::makeValueLabel(const QString& t) {
-    auto* l = new QLabel(t);
+QLabel* Panel5A42::makeValueLabel(const QString& sigName) {
+    QLabel* l = sigName.isEmpty() ? new QLabel("---") : new SignalDragLabel(sigName);
     l->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     l->setStyleSheet("background:#f0f4ff; color:#003080; border:1px solid #bbb; padding:2px 4px;");
     l->setMinimumWidth(70);
@@ -33,26 +34,27 @@ void Panel5A42::buildUi() {
     auto* grid = new QGridLayout;
     grid->setSpacing(4);
 
-    auto addRow = [&](int row, const QString& name, QLabel*& val) {
+    // sigName = chart signal name for dragging; empty = not in any chart
+    auto addRow = [&](int row, const QString& name, QLabel*& val, const QString& sigName = {}) {
         grid->addWidget(mkLabel(name + ":"), row, 0);
-        val = makeValueLabel();
+        val = makeValueLabel(sigName);
         grid->addWidget(val, row, 1);
     };
 
     int r = 0;
-    addRow(r++, "K1",      m_lK1);
-    addRow(r++, "K2",      m_lK2);
-    addRow(r++, "ADC26[V]",m_lAdc26);
-    addRow(r++, "ML1[°]",  m_lMl1);
-    addRow(r++, "ML2[°]",  m_lMl2);
-    addRow(r++, "ML3[°]",  m_lMl3);
-    addRow(r++, "DUC1",    m_lDuc1);
-    addRow(r++, "DUC2",    m_lDuc2);
-    addRow(r++, "DUC3",    m_lDuc3);
-    addRow(r++, "DUK",     m_lDuk);
-    addRow(r++, "SetPt1",  m_lSp1);
-    addRow(r++, "SetPt2",  m_lSp2);
-    addRow(r++, "SetPt3",  m_lSp3);
+    addRow(r++, "K1",      m_lK1,    "K1");
+    addRow(r++, "K2",      m_lK2,    "K2");
+    addRow(r++, "ADC26[V]",m_lAdc26, "ADC26V");
+    addRow(r++, "ML1[°]",  m_lMl1,   "ML1");
+    addRow(r++, "ML2[°]",  m_lMl2,   "ML2");
+    addRow(r++, "ML3[°]",  m_lMl3,   "ML3");
+    addRow(r++, "DUC1",    m_lDuc1,  "ω1");
+    addRow(r++, "DUC2",    m_lDuc2,  "ω2");
+    addRow(r++, "DUC3",    m_lDuc3,  "ω3");
+    addRow(r++, "DUK",     m_lDuk,   "DUK");
+    addRow(r++, "SetPt1",  m_lSp1,   "SP1");
+    addRow(r++, "SetPt2",  m_lSp2,   "SP2");
+    addRow(r++, "SetPt3",  m_lSp3,   "SP3");
     addRow(r++, "Index",   m_lIndex);
 
     // Status LEDs

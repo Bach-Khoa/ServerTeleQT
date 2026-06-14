@@ -33,11 +33,12 @@ signals:
 
 private:
     void processBuffer();
-    void parseSubPackets(const QByteArray& payload);
+    void parseSubPackets();
 
     QTcpSocket*  m_socket;
     PacketParser m_parser;  // own copy — no sharing across threads
     QByteArray   m_buffer;
+    QByteArray   m_subBuffer; // accumulates sub-packet bytes across TCP frames
     QString      m_address;
 };
 

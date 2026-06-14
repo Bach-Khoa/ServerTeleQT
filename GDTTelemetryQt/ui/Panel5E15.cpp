@@ -1,5 +1,6 @@
 #include "Panel5E15.h"
 #include "LedIndicator.h"
+#include "SignalDragLabel.h"
 #include <QLabel>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -14,15 +15,20 @@ Panel5E15::Panel5E15(QWidget* parent) : QWidget(parent) {
                        "QGroupBox::title{subcontrol-origin:margin;left:8px;}");
     auto* g = new QGridLayout; g->setSpacing(4);
 
-    auto mkVal = [&]() -> QLabel* {
-        auto* l = new QLabel("---");
+    auto mkVal = [&](const QString& sig = {}) -> QLabel* {
+        QLabel* l;
+        if (sig.isEmpty()) {
+            l = new QLabel("---");
+        } else {
+            l = new SignalDragLabel(sig);
+        }
         l->setStyleSheet("background:#fff8f0;color:#804400;border:1px solid #bbb;padding:2px 4px;");
         l->setAlignment(Qt::AlignRight|Qt::AlignVCenter); l->setMinimumWidth(70); return l;
     };
     int r = 0;
-    g->addWidget(new QLabel("NhietDo DSP [°C]:"), r, 0); m_lTemp    = mkVal(); g->addWidget(m_lTemp,   r++, 1);
-    g->addWidget(new QLabel("DienAp 150V:"),      r, 0); m_lDienAp  = mkVal(); g->addWidget(m_lDienAp, r++, 1);
-    g->addWidget(new QLabel("SoXungPhatXa:"),     r, 0); m_lXung    = mkVal(); g->addWidget(m_lXung,   r++, 1);
+    g->addWidget(new QLabel("NhietDo DSP [°C]:"), r, 0); m_lTemp    = mkVal("Nhiệt độ DSP"); g->addWidget(m_lTemp,   r++, 1);
+    g->addWidget(new QLabel("DienAp 150V:"),      r, 0); m_lDienAp  = mkVal("Điện áp 150V"); g->addWidget(m_lDienAp, r++, 1);
+    g->addWidget(new QLabel("SoXungPhatXa:"),     r, 0); m_lXung    = mkVal("Xung ×10³");    g->addWidget(m_lXung,   r++, 1);
 
     auto addLed = [&](const QString& n, LedIndicator*& led, QColor c) {
         auto* h = new QHBoxLayout; led = new LedIndicator; led->setOnColor(c);

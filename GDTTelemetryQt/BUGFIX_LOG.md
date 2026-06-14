@@ -239,3 +239,226 @@ Sub-packet: `[AF][type<<5|idx_hi][idx_mid][idx_lo][data][FA][CRC8]`
 | `ui/MainWindow.cpp` | Client count realtime, Stop/Reset server, info bar, toolbar |
 | `storage/CsvLogger.h/.cpp` | Periodic flush mỗi 5s (dùng QTimer), tránh data loss |
 | `D:\Code\SimulateSignal\tcp_simulator.py` | Tạo mới — TCP simulator để test |
+
+---
+
+## Update 2026-06-14 — Chart redesign + TelemetryServer.h sync fix
+
+### Fix: TelemetryServer.h không đồng bộ với .cpp
+
+`TelemetryServer.h` vẫn khai báo `parseSubPackets(const QByteArray& payload)` và thiếu `m_subBuffer`
+sau khi session trước chỉ sync `.cpp` từ inner project sang outer.
+
+**Fix:** Cập nhật `.h` để khớp `.cpp`:
+- Đổi signature thành `void parseSubPackets();`
+- Thêm `QByteArray m_subBuffer;` vào private members
+
+→ Rebuild thành công. Binary mới có đúng fix Bug #6 (tích lũy bytes qua TCP frame).
+
+### Chart redesign: SeparatedChart → OverlaidChart, layout 2×2
+
+**Vấn đề:** Layout 4 chart xếp chồng dọc + CANoe-style separated lanes → khó đọc.
+
+**Thay đổi:**
+- Tạo mới `ui/OverlaidChart.h/.cpp`: tất cả signals vẽ chồng nhau trên 1 chart,
+  nền trắng, có checkbox toggle từng signal, Y-axis giá trị vật lý thực.
+- Cập nhật `ui/MultiChartWidget.h/.cpp`: layout 2×2 grid giống C# reference:
+  - Top-left: **5U44** — K1, K2, Xung Hỏi (Y: -2 đến 50)
+  - Top-right: **5A42** — 13 signals: K1, K2, ω1, ω2, ω3, DUK, ADC26V, ML1, ML2, ML3, SP1, SP2, SP3 (Y: -100 đến 100)
+  - Bottom-left: **5E15** — Điện áp 150V, Nhiệt độ DSP, Số xung ×10³ (Y: 0 đến 160)
+  - Bottom-right: **5I41** — 26VDC, 36VAC, 115VAC, Tần số/10, Th CCY, Th CO, Th SSP (Y: 0 đến 130)
+- Cập nhật `CMakeLists.txt`: thêm `OverlaidChart.cpp/.h`
+
+| File | Thay đổi |
+|------|----------|
+| `network/TelemetryServer.h` | Sync với .cpp: thêm `m_subBuffer`, đổi `parseSubPackets()` signature |
+| `ui/OverlaidChart.h` | Tạo mới — overlaid chart widget |
+| `ui/OverlaidChart.cpp` | Tạo mới — implementation |
+| `ui/MultiChartWidget.h` | Đổi từ SeparatedChart → OverlaidChart |
+| `ui/MultiChartWidget.cpp` | Layout 2×2, 13 signals 5A42, 7 signals 5I41 |
+| `CMakeLists.txt` | Thêm OverlaidChart.cpp/.h |
+
+---
+
+## Update 2026-06-14 — Compact sidebar, larger chart text, drag-drop signals
+
+### 1. Compact sidebar thay thế panel cuộn
+
+**Vấn đề:** Panel trái có 5 bảng xếp lưới → phải kéo thanh lăn mới xem hết.
+
+**Fix:** Thay bằng sidebar cố định 195px, 5 card xếp dọc không cần scroll:
+- Header màu per block + nút "↗" để mở full panel trong dialog Qt::Tool
+- Mỗi card hiện 2-4 thông số quan trọng nhất (Index, Status, K1/K2, ADC, Freq...)
+- Full panels (Panel5A42, Panel5I41...) vẫn update live khi dialog ẩn
+
+### 2. Chữ trên đồ thị to hơn
+
+- OverlaidChart: checkbox label 7pt → **9pt bold**, axis Y font 7 → **8**, groupbox title 8pt → **10pt**
+- Checkbox indicator size: 10×10 → **12×12 px**
+
+### 3. Drag-drop signal từ sidebar vào chart
+
+- Value label trong sidebar là `SignalDragLabel` — có cursor tay, tooltip "Kéo vào đồ thị"
+- Kéo label vào vùng chart → signal tương ứng được bật checkbox (nếu chart có signal đó)
+- MIME type: `application/x-gdt-signal` (signal name khớp với tên trong OverlaidChart)
+- OverlaidChart bắt drop qua event filter trên QChartView
+
+| File | Thay đổi |
+|------|----------|
+| `ui/OverlaidChart.h` | Thêm `eventFilter()` override |
+| `ui/OverlaidChart.cpp` | Font lớn hơn; drop support qua event filter |
+| `ui/MainWindow.h` | Thêm compact label members + dialog members |
+| `ui/MainWindow.cpp` | `SignalDragLabel` class; `buildUi()` compact sidebar; `onUiTimer()` cập nhật labels |
+
+---
+
+## Update 2026-06-14 — Auto-prompt log name on startup & reset
+
+**Yêu cầu:** Giống app C# cũ — khi mở app và sau mỗi lần Reset Server, tự động hỏi tên log để tránh quên lưu data.
+
+**Thay đổi:**
+- Tách logic "hỏi tên + mở log" thành `promptAndStartLog()` (private slot)
+- **Startup**: `QTimer::singleShot(350ms)` gọi `promptAndStartLog()` sau khi window hiện
+- **Reset Server (`onResetServer`)**: sau khi restart, gọi `promptAndStartLog()` — đóng log cũ, mở log mới
+- **Menu "Bắt đầu ghi CSV"**: `onStartLog()` giờ delegate vào `promptAndStartLog()`
+- Nếu user bấm Hủy hoặc để trống → không ghi log (không bắt buộc)
+
+| File | Thay đổi |
+|------|----------|
+| `ui/MainWindow.h` | Thêm slot `promptAndStartLog()` |
+| `ui/MainWindow.cpp` | Constructor + `onResetServer()` + `onStartLog()` + thêm `promptAndStartLog()` impl |
+
+---
+
+## Update 2026-06-14 — UI redesign: chart to fullscreen, error rate panel to popup
+
+**Thay đổi:**
+- `ErrorRatePanel` được chuyển ra khỏi main layout, đặt trong floating `QDialog` riêng.
+- `MultiChartWidget` (4 đồ thị 5E/5I/5A/5U) giờ chiếm toàn bộ chiều cao panel phải.
+- Thêm nút **📈 Tỷ lệ lỗi** trên toolbar — bấm để hiện/ẩn dialog tỷ lệ lỗi.
+- InfoBar tỷ lệ lỗi: chiều cao 28→38px, font 9px→12px, hiển thị màu:
+  - Xanh lá (OK) khi < 0.1%
+  - Vàng (cảnh báo) khi 0.1–1%
+  - Đỏ (lỗi) khi ≥ 1%
+  - Xám (chưa nhận data)
+
+| File | Thay đổi |
+|------|----------|
+| `ui/MainWindow.h` | Thêm `QDialog* m_errRateDlg`, slot `onToggleErrorRatePanel()` |
+| `ui/MainWindow.cpp` | Redesign `buildUi()`, `buildMenuBar()`, `onUiTimer()`, thêm `onToggleErrorRatePanel()` |
+
+---
+
+## Update 2026-06-14 — Fix 5E15 CSV từ 9 cột → 165 cột (khớp C#)
+
+**Vấn đề:** Qt log 5E15 chỉ có 9 cột vs C# có **165 cột** (3 outer + 162 model fields).
+Các tool phân tích data kỳ vọng đúng 165 cột → file Qt không compatible.
+
+**Phát hiện từ C# source (`GeneralModel.cs`, `Infor5E15BlockModel.cs`):**
+- `CSV_DATA_HEADER_5E15VT` định nghĩa 165 cột (client + time + index + 162 model fields)
+- `Infor5E15BlockModel` **chỉ parse 6 fields thực sự**: NhietDoDsp, DienAp150vNguon, SoXungPhatXaTxDuCS, Detonated, K3, Nlc
+- 156 cột còn lại (IF spectrum IF_X/IF_Y, tichluy, các dòng điện/điện áp phụ) = 0 trong C# (chưa parse)
+- Qt `Data5E15` struct đã có đúng 6 fields → **không cần thay đổi struct hay parser**
+
+**Fix:** Chỉ cần cập nhật `CsvLogger.cpp`:
+- `HDR_5E15`: copy chính xác `CSV_DATA_HEADER_5E15VT` từ C# (165 cột)
+- `write5E15()`: viết đủ 165 giá trị per row, 6 field thực + 159 giá trị 0
+- Column mapping (0-based từ model): [1]=nhietdoDsp, [2]=dinap150vNguon, [19]=detonated, [21]=k3, [24]=nlc, [32]=soxungphatxaTxduCS
+
+| File | Thay đổi |
+|------|----------|
+| `storage/CsvLogger.cpp` | HDR_5E15: 9→165 cột; write5E15: output đủ 165 giá trị khớp C# |
+
+---
+
+## Update 2026-06-14 — Dashed line khi chưa nhận được packet
+
+**Yêu cầu:** Khi server đang chạy nhưng một loại packet chưa được gửi tới (hoặc chưa nhận được), các đường tín hiệu trên chart tương ứng hiển thị **nét đứt** (`Qt::DashLine`) dưới dạng đường ngang tại y=0.  
+Khi bắt đầu nhận data, đường chuyển về **nét liền** (`Qt::SolidLine`) như bình thường.
+
+**Cơ chế:**
+- `OverlaidChart` thêm flag `m_hasData = false`
+- Constructor: set series pen `Qt::DashLine`, set `m_dirty = true` để vẽ placeholder ngay
+- `refreshChart()`: nếu `!m_hasData` → vẽ flat dashed line tại y=0 cho mỗi visible series, return sớm
+- `addSamples()`: lần đầu được gọi (`!m_hasData`) → switch tất cả series sang `Qt::SolidLine`, set `m_hasData = true`
+- `reset()`: set `m_hasData = false`, switch lại `Qt::DashLine`, set `m_dirty = true`
+
+Không cần thay đổi `MainWindow` hay `MultiChartWidget`.
+
+| File | Thay đổi |
+|------|----------|
+| `ui/OverlaidChart.h` | Thêm `bool m_hasData = false` |
+| `ui/OverlaidChart.cpp` | Constructor: DashLine pen + m_dirty=true; `addSamples()`: switch SolidLine on first call; `refreshChart()`: placeholder block; `reset()`: restore DashLine |
+
+---
+
+## Update 2026-06-14 — Kéo thả từ dialog chi tiết vào đồ thị
+
+**Vấn đề:** Các label giá trị trong dialog chi tiết (↗) của từng khối không kéo được vào đồ thị, chỉ có sidebar mới kéo được.
+
+**Fix:**
+- Tách `SignalDragLabel` ra file riêng `ui/SignalDragLabel.h` (header-only, Q_OBJECT, không hardcode style)
+- Xóa inline class khỏi `MainWindow.cpp`, thêm `#include "SignalDragLabel.h"`; `mkDrag()` lambda tự set style sidebar
+- Mỗi Panel .cpp dùng `SignalDragLabel(sigName)` thay `QLabel("---")` cho các label có signal trên chart
+- .h files không đổi — C++ polymorphism: `SignalDragLabel*` gán vào `QLabel*` member hợp lệ
+
+**Mapping label → chart signal:**
+
+| Panel | Label | Chart signal |
+|-------|-------|-------------|
+| 5E15 | m_lTemp | "Nhiệt độ DSP" |
+| 5E15 | m_lDienAp | "Điện áp 150V" |
+| 5E15 | m_lXung | "Xung ×10³" |
+| 5A42 | m_lK1/K2 | "K1"/"K2" |
+| 5A42 | m_lAdc26 | "ADC26V" |
+| 5A42 | m_lMl1/2/3 | "ML1"/"ML2"/"ML3" |
+| 5A42 | m_lDuc1/2/3 | "ω1"/"ω2"/"ω3" |
+| 5A42 | m_lDuk | "DUK" |
+| 5A42 | m_lSp1/2/3 | "SP1"/"SP2"/"SP3" |
+| 5U44 | m_lK1/K2 | "K1"/"K2" |
+| 5U44 | m_lXungHoi | "Xung Hỏi" |
+| 5I41 | m_lAdc26/36/115 | "26VDC"/"36VAC"/"115VAC" |
+| 5I41 | m_lFreq | "Tần số/10" |
+
+| File | Thay đổi |
+|------|----------|
+| `ui/SignalDragLabel.h` | Tạo mới — shared draggable label header |
+| `ui/MainWindow.cpp` | Xóa inline class; thêm include; mkDrag() set style |
+| `ui/Panel5E15.cpp` | mkVal() dùng SignalDragLabel cho 3 labels |
+| `ui/Panel5A42.cpp` | makeValueLabel(sigName) dùng SignalDragLabel cho 13 labels |
+| `ui/Panel5U44.cpp` | makeValueLabel(sigName) dùng SignalDragLabel cho 3 labels |
+| `ui/Panel5I41.cpp` | mkVal(sig) dùng SignalDragLabel cho 4 labels |
+| `ui/Panel5A42.h` | Cập nhật signature makeValueLabel |
+| `ui/Panel5U44.h` | Cập nhật signature makeValueLabel |
+| `CMakeLists.txt` | Thêm SignalDragLabel.h vào HEADERS |
+
+---
+
+## Update 2026-06-14 — Chart controls: Clear All, Show All, Pause+Zoom
+
+**Thêm vào mỗi OverlaidChart (4 charts):**
+
+### Nút điều khiển (góc phải của checkbox row)
+- **✓ Tất cả** — bật visible tất cả signals + checkbox
+- **✗ Xóa** — ẩn tất cả signals + uncheck
+- **⏸ / ▶ Dừng** — toggle freeze display
+
+### Chế độ Dừng (khi bấm ⏸)
+- Nền chart chuyển vàng nhạt → hiển thị trực quan "đang dừng"
+- **Kéo chuột trái** → zoom vùng (rubber-band `RectangleRubberBand`)
+- **Cuộn chuột** → zoom in/out (factor ×1.15)
+- **Chuột phải** → reset zoom về toàn bộ
+- Data vẫn tích lũy trong ring buffer khi dừng
+- Khi bấm ▶ tiếp tục: zoom reset, auto-scale tiếp tục, refresh ngay
+
+### Tooltip giá trị live
+- Mỗi checkbox cập nhật tooltip = tên signal + giá trị hiện tại
+- Ví dụ: "K1\n▶ 0.123"
+
+### Reset behavior
+- `reset()` unfreeze pause, reset zoom, restore dashed placeholder
+
+| File | Thay đổi |
+|------|----------|
+| `ui/OverlaidChart.h` | Thêm `m_paused`, `m_btnPause`, slots `clearAll()`/`showAll()` |
+| `ui/OverlaidChart.cpp` | Constructor: 3 control buttons + separator; `addSamples()`: tooltip live; `refreshChart()`: pause guard; `eventFilter()`: wheel zoom + right-click reset; `clearAll()`/`showAll()`/`reset()` |

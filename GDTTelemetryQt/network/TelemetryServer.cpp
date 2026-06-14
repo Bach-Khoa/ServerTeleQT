@@ -26,6 +26,7 @@ void ClientWorker::updateCalib(GDT::Calib5A42 calib) {
 }
 
 void ClientWorker::onDisconnected() {
+    m_subBuffer.clear(); // discard any partial sub-packet from this session
     emit clientDisconnected(m_address);
 }
 
@@ -68,18 +69,22 @@ void ClientWorker::processBuffer() {
         QByteArray payload = m_buffer.mid(5, (int)dlen);
         m_buffer.remove(0, frameLen);
 
-        if (type == TCP_TYPE_TELE)
-            parseSubPackets(payload);
+        if (type == TCP_TYPE_TELE) {
+            m_subBuffer.append(payload);   // accumulate; sub-packets may span TCP frames
+            parseSubPackets();
+        }
     }
 }
 
-void ClientWorker::parseSubPackets(const QByteArray& payload) {
+void ClientWorker::parseSubPackets() {
+    // Parse from m_subBuffer which accumulates bytes across TCP frames,
+    // mirroring C# _teleData so sub-packets split across frame boundaries are handled correctly.
     int i = 0;
-    while (i < payload.size()) {
-        if ((uint8_t)payload[i] != HEADER) { ++i; continue; }
-        if (i + 2 > payload.size()) break;
+    while (i < m_subBuffer.size()) {
+        if ((uint8_t)m_subBuffer[i] != HEADER) { ++i; continue; }
+        if (i + 2 > m_subBuffer.size()) break;
 
-        uint8_t typeBits = ((uint8_t)payload[i + 1] >> 5) & 0x07;
+        uint8_t typeBits = ((uint8_t)m_subBuffer[i + 1] >> 5) & 0x07;
         int len;
         switch (typeBits) {
             case 0: len = LEN_5A42;      break;
@@ -89,10 +94,9 @@ void ClientWorker::parseSubPackets(const QByteArray& payload) {
             default: ++i; continue;
         }
 
-        if (i + len > payload.size()) break;
-        QByteArray pkt = payload.mid(i, len);
-        // On tailer or CRC8 mismatch, advance by full `len` (matching C# behavior).
-        // Advancing only 1 byte risks misaligning all subsequent sub-packets.
+        if (i + len > m_subBuffer.size()) break; // incomplete — wait for more data
+
+        QByteArray pkt = m_subBuffer.mid(i, len);
         if ((uint8_t)pkt[len - 2] != TAILER) { i += len; continue; }
         if (!m_parser.checkCrc8(pkt))         { i += len; continue; }
 
@@ -108,6 +112,7 @@ void ClientWorker::parseSubPackets(const QByteArray& payload) {
         }
         i += len;
     }
+    m_subBuffer.remove(0, i); // discard processed bytes; keep any partial sub-packet tail
 }
 
 // ============================================================
